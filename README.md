@@ -28,7 +28,7 @@ Default behavior:
 ### Manual install from this repo
 
 ```bash
-git clone https://github.com/YOUR_NAME/zshai.git
+git clone https://github.com/pc-style/zshai.git
 cd zshai
 ./install.sh
 ```
@@ -53,7 +53,7 @@ uv tool install .
 From a GitHub repo:
 
 ```bash
-uv tool install git+https://github.com/YOUR_NAME/zshai.git
+uv tool install git+https://github.com/pc-style/zshai.git
 ```
 
 After a `uv tool install`, add the zsh hook to your shell config:

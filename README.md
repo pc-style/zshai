@@ -1,6 +1,6 @@
 # zshai
 
-`zshai` turns a zsh line that starts with `# ` into an AI-generated shell command.
+`zshai` turns a zsh line that starts with `# ` into an AI-generated shell command. The command is inserted into your prompt for review by default; press Enter again to run it.
 
 ```zsh
 # find all files with convex in their name
@@ -21,7 +21,7 @@ Default behavior:
 - opencode model: `big-pickle`
 - Gemini model: `gemini-3.1-flash-lite-preview`
 - Gemini thinking level: `medium`
-- intercept mode: `execute`
+- intercept mode: `confirm` (never executes the generated command automatically)
 
 ## Install
 
@@ -67,6 +67,7 @@ Then run:
 
 ```bash
 zshai configure --interactive
+zshai consent
 zshai doctor
 ```
 
@@ -111,6 +112,12 @@ export GEMINI_API_KEY=...
 
 ## Hook modes
 
-- `execute`: generate a command and run it immediately
 - `confirm`: generate a command and insert it into your prompt buffer
 - `print`: generate a command and print it without executing
+- `execute`: generate a command and run it immediately (**explicit opt-in; generated commands can be destructive**)
+
+## Trust boundary and consent
+
+AI output is untrusted shell text. The default `confirm` mode only inserts it into the editable prompt; inspect it before pressing Enter. `execute` mode removes that safety boundary and should only be enabled when you intentionally accept the risk. Unknown or missing mode values also fall back to confirmation rather than execution.
+
+Generating a suggestion sends your prompt plus current-directory context to the selected provider. Context includes the resolved directory path, up to 20 entry names, available tools, platform/user/host details, and git branch/dirty status. Depending on priority and availability, that provider is Codex, OpenCode, or Google's Gemini API. Provider tools and services have their own data handling policies. On first use, generation is blocked until you review this boundary and run `zshai consent` (or grant consent during `zshai configure --interactive`). No provider is contacted when consent is declined. Remove `provider_cwd_consent` from the config or set it to `false` to revoke consent.

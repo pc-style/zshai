@@ -13,7 +13,8 @@ SUPPORTED_PROVIDERS = ("codex", "opencode", "gemini")
 DEFAULT_CONFIG: dict[str, Any] = {
     "enabled": True,
     "prefix": "# ",
-    "mode": "execute",
+    "mode": "confirm",
+    "provider_cwd_consent": False,
     "provider_priority": ["codex", "opencode", "gemini"],
     "codex": {
         "command": "codex",

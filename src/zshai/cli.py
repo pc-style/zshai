@@ -19,7 +19,7 @@ function _zshai_accept_line() {
   prefix="${ZSHAI_PREFIX_OVERRIDE:-$(zshai config-get prefix 2>/dev/null)}"
   mode="${ZSHAI_MODE_OVERRIDE:-$(zshai config-get mode 2>/dev/null)}"
   [[ -z "$prefix" ]] && prefix="# "
-  [[ -z "$mode" ]] && mode="execute"
+  [[ -z "$mode" ]] && mode="confirm"
 
   if [[ "$enabled" == "False" || "$enabled" == "false" || "$enabled" == "0" ]]; then
     zle .accept-line
@@ -42,17 +42,17 @@ function _zshai_accept_line() {
   print -P "%F{39}zshai%f -> $generated"
 
   case "$mode" in
-    confirm)
-      BUFFER="$generated"
-      zle redisplay
-      ;;
     print)
       BUFFER=""
       zle redisplay
       ;;
-    *)
+    execute)
       BUFFER="$generated"
       zle .accept-line
+      ;;
+    *)
+      BUFFER="$generated"
+      zle redisplay
       ;;
   esac
 }
@@ -95,6 +95,7 @@ def cmd_status(_: argparse.Namespace) -> int:
             "enabled": config["enabled"],
             "prefix": config["prefix"],
             "mode": config["mode"],
+            "provider_cwd_consent": config["provider_cwd_consent"],
             "provider_priority": config["provider_priority"],
             "codex_model": config["codex"]["model"],
             "opencode_agent": config["opencode"]["agent"],
@@ -152,6 +153,13 @@ def _configure_interactive(config: dict[str, Any]) -> dict[str, Any]:
     if parsed_priority:
         config["provider_priority"] = parsed_priority
 
+    providers = ", ".join(config["provider_priority"])
+    consent = _ask(
+        f"Allow sending prompts and current-directory context to configured providers ({providers})? (y/n)",
+        "y" if config["provider_cwd_consent"] else "n",
+    )
+    config["provider_cwd_consent"] = _parse_bool(consent, config["provider_cwd_consent"])
+
     config["codex"]["model"] = _ask("Codex model override (empty keeps CLI default)", config["codex"]["model"])
     config["opencode"]["agent"] = _ask("OpenCode agent", config["opencode"]["agent"])
     config["opencode"]["model"] = _ask("OpenCode model", config["opencode"]["model"])
@@ -200,6 +208,13 @@ def cmd_generate(args: argparse.Namespace) -> int:
     if not config.get("enabled", True) and not args.ignore_disabled:
         print("zshai is disabled. Run `zshai enable` or use `--ignore-disabled`.", file=sys.stderr)
         return 1
+    if not config.get("provider_cwd_consent", False):
+        print(
+            "Provider/CWD consent is required before sending data. Run `zshai consent` or "
+            "`zshai configure --interactive`.",
+            file=sys.stderr,
+        )
+        return 1
     try:
         suggestion = generate_command(prompt=args.prompt, cwd=args.cwd, shell=args.shell, config=config)
     except ProviderError as exc:
@@ -224,6 +239,20 @@ def cmd_init_zsh(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_consent(_: argparse.Namespace) -> int:
+    config = load_config()
+    providers = ", ".join(config["provider_priority"])
+    print("zshai sends your prompt and current-directory context (path, file names, and git status)")
+    answer = input(f"to configured providers ({providers}). Allow this? [y/N]: ").strip()
+    if answer.lower() not in {"y", "yes"}:
+        print("Consent not granted; no data was sent.")
+        return 1
+    config["provider_cwd_consent"] = True
+    save_config(config)
+    print(f"Consent saved to {CONFIG_PATH}. You can revoke it by deleting the config or setting the value to false.")
+    return 0
+
+
 def _binary_status(name: str) -> dict[str, str]:
     path = shutil.which(name)
     return {"ok": "true" if path else "false", "path": path or ""}
@@ -239,6 +268,7 @@ def cmd_doctor(_: argparse.Namespace) -> int:
         "enabled": str(config["enabled"]).lower(),
         "prefix": config["prefix"],
         "mode": config["mode"],
+        "provider_cwd_consent": str(config["provider_cwd_consent"]).lower(),
         "provider_priority": ",".join(config["provider_priority"]),
         "codex": _binary_status(config["codex"]["command"]),
         "opencode": _binary_status(config["opencode"]["command"]),
@@ -265,6 +295,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("disable").set_defaults(func=cmd_disable)
     subparsers.add_parser("doctor").set_defaults(func=cmd_doctor)
     subparsers.add_parser("init-zsh").set_defaults(func=cmd_init_zsh)
+    subparsers.add_parser("consent").set_defaults(func=cmd_consent)
 
     config_get = subparsers.add_parser("config-get")
     config_get.add_argument("key")
